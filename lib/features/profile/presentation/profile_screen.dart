@@ -4,6 +4,7 @@ import '../providers/profile_provider.dart';
 import '../../../features/auth/providers/auth_provider.dart';
 import '../../quiz/presentation/quiz_screen.dart';
 import '../../game/presentation/matchmaking_screen.dart';
+import '../../character/presentation/character_selection_screen.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -41,15 +42,29 @@ class ProfileScreen extends ConsumerWidget {
               children: [
                 // Avatar
                 Center(
-                  child: CircleAvatar(
-                    radius: 48,
-                    backgroundColor: scheme.primaryContainer,
-                    child: Text(
-                      profile.username.substring(0, 1).toUpperCase(),
-                      style: TextStyle(
-                        fontSize: 40,
-                        fontWeight: FontWeight.bold,
-                        color: scheme.onPrimaryContainer,
+                  child: Container(
+                    width: 96,
+                    height: 96,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(24),
+                      color: scheme.primaryContainer,
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(24),
+                      child: Image.asset(
+                        'assets/characters/${profile.selectedCharacter}_icon.png',
+                        fit: BoxFit.cover,
+                        errorBuilder:
+                            (_, __, ___) => Center(
+                              child: Text(
+                                profile.username.substring(0, 1).toUpperCase(),
+                                style: TextStyle(
+                                  fontSize: 40,
+                                  fontWeight: FontWeight.bold,
+                                  color: scheme.onPrimaryContainer,
+                                ),
+                              ),
+                            ),
                       ),
                     ),
                   ),
@@ -173,14 +188,13 @@ class ProfileScreen extends ConsumerWidget {
                   title: const Text('Selected Character'),
                   subtitle: Text(profile.selectedCharacter.toUpperCase()),
                   trailing: const Icon(Icons.chevron_right),
-                  onTap: () {
-                    // Character selection → Step 7
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Character system coming in Step 7!'),
+                  onTap:
+                      () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const CharacterSelectionScreen(),
+                        ),
                       ),
-                    );
-                  },
                 ),
                 const SizedBox(height: 24),
                 SizedBox(
