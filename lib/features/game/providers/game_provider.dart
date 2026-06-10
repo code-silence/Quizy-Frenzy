@@ -114,6 +114,12 @@ class BattleNotifier extends AsyncNotifier<BattleState> {
       ),
     );
 
+    // If the match is already in progress when we initialize, start the timer
+    // so non-hosts also begin counting down.
+    if (match.isInProgress) {
+      _startTimer();
+    }
+
     _listenToMatch(match.id);
     _listenToPlayers(match.id);
   }
@@ -133,7 +139,7 @@ class BattleNotifier extends AsyncNotifier<BattleState> {
         return;
       }
 
-      // Question advanced by host
+      // Question advanced (start timer for both players)
       if (updatedMatch.currentQuestionIndex !=
           current.match.currentQuestionIndex) {
         _timer?.cancel();
@@ -145,15 +151,13 @@ class BattleNotifier extends AsyncNotifier<BattleState> {
             clearSelected: true,
           ),
         );
-        if (current.isHost) _startTimer();
+        _startTimer(); // BOTH players start timer on question change
       } else {
         state = AsyncData(current.copyWith(match: updatedMatch));
       }
 
-      // Start timer when match goes in_progress
-      if (updatedMatch.isInProgress &&
-          !current.match.isInProgress &&
-          current.isHost) {
+      // Start timer when match goes in_progress (both players)
+      if (updatedMatch.isInProgress && !current.match.isInProgress) {
         _startTimer();
       }
     });
@@ -164,7 +168,7 @@ class BattleNotifier extends AsyncNotifier<BattleState> {
         .read(gameRepositoryProvider)
         .watchPlayers(matchId)
         .listen(
-          (players) {
+          (players) async {
             print('=== players update received: ${players.length} players ===');
             for (final p in players) {
               print('  player: ${p.username} | host: ${p.isHost}');
@@ -182,7 +186,9 @@ class BattleNotifier extends AsyncNotifier<BattleState> {
                 current.match.isWaiting &&
                 current.isHost) {
               print('=== AUTO STARTING MATCH ===');
-              ref.read(gameRepositoryProvider).startMatch(matchId);
+              await ref.read(gameRepositoryProvider).startMatch(matchId);
+              // Host starts the timer immediately after starting the match
+              _startTimer();
             }
           },
           onError: (e) {
@@ -209,8 +215,16 @@ class BattleNotifier extends AsyncNotifier<BattleState> {
 
   void _onTimeUp() {
     final current = state.value;
-    if (current == null || current.answered) return;
-    _submitAnswer(null);
+    if (current == null) return;
+
+    if (!current.answered) {
+      _submitAnswer(
+        null,
+      ); // submits null answer which calls _waitForBothAnswers
+    } else if (current.isHost) {
+      // Host already answered but timer ran out — force advance
+      _waitForBothAnswers(current);
+    }
   }
 
   Future<void> selectAnswer(String answer) async {
@@ -248,21 +262,60 @@ class BattleNotifier extends AsyncNotifier<BattleState> {
           score: newScore,
         );
 
-    // Host advances question after delay
+    // Host advances ONLY after both players answered OR timer ends
     if (current.isHost) {
-      await Future.delayed(const Duration(seconds: 2));
-      final isLast =
-          current.match.currentQuestionIndex >= current.questions.length - 1;
-      if (isLast) {
-        await ref.read(gameRepositoryProvider).finishMatch(current.match.id);
-      } else {
-        await ref
-            .read(gameRepositoryProvider)
-            .nextQuestion(
-              current.match.id,
-              current.match.currentQuestionIndex + 1,
-            );
+      _waitForBothAnswers(current);
+    }
+  }
+
+  Future<void> _waitForBothAnswers(BattleState current) async {
+    final matchId = current.match.id;
+    final totalQuestions = current.questions.length;
+    final currentIndex = current.match.currentQuestionIndex;
+
+    // Poll every 500ms until opponent answers or timer runs out
+    for (int i = 0; i < 30; i++) {
+      // max 15 seconds (30 × 500ms)
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      // Fetch latest player states
+      final players = await ref
+          .read(gameRepositoryProvider)
+          .fetchPlayers(matchId);
+
+      final bothAnswered = players.every(
+        (p) => p.answers.length > currentIndex,
+      );
+
+      final currentState = state.value;
+      if (currentState == null) return;
+
+      // Also stop waiting if timer already ran out
+      if (bothAnswered || currentState.secondsLeft <= 0) {
+        await Future.delayed(const Duration(milliseconds: 500));
+
+        final isLast = currentIndex >= totalQuestions - 1;
+        if (isLast) {
+          await ref.read(gameRepositoryProvider).finishMatch(matchId);
+        } else {
+          await ref
+              .read(gameRepositoryProvider)
+              .nextQuestion(matchId, currentIndex + 1);
+        }
+        return;
       }
+    }
+
+    // Timeout fallback — advance anyway after 15 seconds
+    final currentState = state.value;
+    if (currentState == null) return;
+    final isLast = currentIndex >= totalQuestions - 1;
+    if (isLast) {
+      await ref.read(gameRepositoryProvider).finishMatch(matchId);
+    } else {
+      await ref
+          .read(gameRepositoryProvider)
+          .nextQuestion(matchId, currentIndex + 1);
     }
   }
 }
