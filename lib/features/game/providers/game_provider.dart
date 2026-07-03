@@ -4,6 +4,8 @@ import '../data/game_repository.dart';
 import '../models/match_model.dart';
 import '../../quiz/models/question_model.dart';
 import '../../quiz/providers/quiz_provider.dart';
+import '../../ability/models/ability_state.dart';
+import '../../ability/providers/ability_provider.dart';
 import '../../../main.dart';
 
 final gameRepositoryProvider = Provider<GameRepository>((ref) {
@@ -19,6 +21,7 @@ class BattleState {
   final bool answered;
   final int secondsLeft;
   final bool finished;
+  final List<bool> eliminatedOptions;
 
   const BattleState({
     required this.match,
@@ -28,6 +31,7 @@ class BattleState {
     required this.answered,
     required this.secondsLeft,
     required this.finished,
+    required this.eliminatedOptions,
   });
 
   QuestionModel get currentQuestion => questions[match.currentQuestionIndex];
@@ -60,6 +64,7 @@ class BattleState {
     bool? answered,
     int? secondsLeft,
     bool? finished,
+    List<bool>? eliminatedOptions,
     bool clearSelected = false,
   }) {
     return BattleState(
@@ -71,6 +76,7 @@ class BattleState {
       answered: answered ?? this.answered,
       secondsLeft: secondsLeft ?? this.secondsLeft,
       finished: finished ?? this.finished,
+      eliminatedOptions: eliminatedOptions ?? this.eliminatedOptions,
     );
   }
 }
@@ -94,6 +100,9 @@ class BattleNotifier extends AsyncNotifier<BattleState> {
   Future<void> initBattle(MatchModel match) async {
     state = const AsyncLoading();
 
+    // Use microtask so ability init happens AFTER build completes
+    Future.microtask(() => ref.read(abilityProvider.notifier).initForBattle());
+
     final allQuestions = await ref
         .read(quizRepositoryProvider)
         .fetchQuestions(limit: match.questionIds.length);
@@ -111,6 +120,7 @@ class BattleNotifier extends AsyncNotifier<BattleState> {
         answered: false,
         secondsLeft: questionTimeSeconds,
         finished: false,
+        eliminatedOptions: [false, false, false, false],
       ),
     );
 
@@ -149,6 +159,7 @@ class BattleNotifier extends AsyncNotifier<BattleState> {
             answered: false,
             secondsLeft: questionTimeSeconds,
             clearSelected: true,
+            eliminatedOptions: [false, false, false, false],
           ),
         );
         _startTimer(); // BOTH players start timer on question change
@@ -177,6 +188,20 @@ class BattleNotifier extends AsyncNotifier<BattleState> {
             final current = state.value;
             if (current == null) return;
             state = AsyncData(current.copyWith(players: players));
+
+            // Detect Luna sabotage — if MY player row has sabotaged=true
+            final uid = supabase.auth.currentUser?.id;
+            final myRow = players.where((p) => p.playerId == uid).firstOrNull;
+            if (myRow != null && myRow.sabotaged && !current.answered) {
+              // Reduce my timer by 3 seconds
+              final newSeconds = (current.secondsLeft - 3).clamp(1, 999);
+              state = AsyncData(current.copyWith(secondsLeft: newSeconds));
+
+              // Clear the sabotage flag so it doesn't keep triggering
+              await ref
+                  .read(gameRepositoryProvider)
+                  .clearSabotage(matchId: matchId, playerId: uid!);
+            }
 
             print(
               '=== isWaiting: ${current.match.isWaiting} | isHost: ${current.isHost} ===',
@@ -317,6 +342,87 @@ class BattleNotifier extends AsyncNotifier<BattleState> {
           .read(gameRepositoryProvider)
           .nextQuestion(matchId, currentIndex + 1);
     }
+  }
+
+  Future<void> useAbility() async {
+    final current = state.value;
+    if (current == null) return;
+
+    final ability = ref.read(abilityProvider);
+    if (!ability.canUse) return;
+
+    switch (ability.type) {
+      case AbilityType.hint:
+        _eliminateWrongOptions(current, count: 1);
+        break;
+      case AbilityType.doubleHint:
+        _eliminateWrongOptions(current, count: 2);
+        break;
+      case AbilityType.extraTime:
+        state = AsyncData(
+          current.copyWith(secondsLeft: current.secondsLeft + 5),
+        );
+        break;
+      case AbilityType.retry:
+        if (current.answered &&
+            current.selectedAnswer != current.currentQuestion.correctAnswer) {
+          state = AsyncData(
+            current.copyWith(
+              answered: false,
+              secondsLeft: 10,
+              clearSelected: true,
+              eliminatedOptions: [false, false, false, false],
+            ),
+          );
+          _startTimer();
+        } else {
+          return;
+        }
+        break;
+      case AbilityType.sabotage:
+        await ref
+            .read(gameRepositoryProvider)
+            .sabotageOpponent(
+              matchId: current.match.id,
+              opponentId: current.opponent?.playerId ?? '',
+            );
+        break;
+      case AbilityType.none:
+        return;
+    }
+
+    ref.read(abilityProvider.notifier).markUsed();
+
+    // Track usage in Supabase
+    final myPlayer = current.myPlayer;
+    if (myPlayer != null) {
+      await ref
+          .read(gameRepositoryProvider)
+          .markAbilityUsed(
+            matchId: current.match.id,
+            playerId: myPlayer.playerId,
+          );
+    }
+  }
+
+  void _eliminateWrongOptions(BattleState current, {required int count}) {
+    final correct = current.currentQuestion.correctAnswer;
+    final options = ['A', 'B', 'C', 'D'];
+    final wrong = options.where((o) => o != correct).toList()..shuffle();
+
+    final eliminated = List<bool>.from(current.eliminatedOptions);
+    int eliminatedCount = 0;
+
+    for (final option in wrong) {
+      if (eliminatedCount >= count) break;
+      final index = options.indexOf(option);
+      if (!eliminated[index]) {
+        eliminated[index] = true;
+        eliminatedCount++;
+      }
+    }
+
+    state = AsyncData(current.copyWith(eliminatedOptions: eliminated));
   }
 }
 

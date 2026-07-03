@@ -22,9 +22,8 @@ class MatchModel {
       status: map['status'] as String,
       questionIds: List<String>.from(map['question_ids'] ?? []),
       currentQuestionIndex: map['current_question_index'] as int,
-      startedAt: map['started_at'] != null
-          ? DateTime.parse(map['started_at'])
-          : null,
+      startedAt:
+          map['started_at'] != null ? DateTime.parse(map['started_at']) : null,
     );
   }
 
@@ -43,6 +42,7 @@ class MatchPlayerModel {
   final List<String?> answers;
   final bool isHost;
   final bool ready;
+  final bool sabotaged;
 
   const MatchPlayerModel({
     required this.id,
@@ -53,6 +53,7 @@ class MatchPlayerModel {
     required this.answers,
     required this.isHost,
     required this.ready,
+    required this.sabotaged,
   });
 
   factory MatchPlayerModel.fromMap(Map<String, dynamic> map) {
@@ -65,6 +66,7 @@ class MatchPlayerModel {
       answers: List<String?>.from(map['answers'] ?? []),
       isHost: map['is_host'] as bool,
       ready: map['ready'] as bool,
+      sabotaged: map['sabotaged'] as bool? ?? false,
     );
   }
 }

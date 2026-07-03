@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:quizy_frenzy/features/ability/models/ability_state.dart';
 import '../providers/quiz_provider.dart';
+import '../../ability/providers/ability_provider.dart';
+import '../../ability/presentation/widgets/ability_button.dart';
 //import '../models/quiz_result_model.dart';
 import 'widgets/option_tile.dart';
 import 'widgets/quiz_timer.dart';
@@ -36,6 +39,7 @@ class QuizScreen extends ConsumerWidget {
           }
 
           final question = quiz.currentQuestion;
+          final ability = ref.watch(abilityProvider);
 
           return SafeArea(
             child: Padding(
@@ -100,6 +104,24 @@ class QuizScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 32),
 
+                  if (ability.type != AbilityType.none && ability.available)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          AbilityButton(
+                            ability: ability,
+                            onTap:
+                                () =>
+                                    ref
+                                        .read(quizProvider.notifier)
+                                        .useAbility(),
+                          ),
+                        ],
+                      ),
+                    ),
+
                   // Options
                   for (final label in ['A', 'B', 'C', 'D'])
                     OptionTile(
@@ -108,6 +130,13 @@ class QuizScreen extends ConsumerWidget {
                       answered: quiz.answered,
                       isSelected: quiz.selectedAnswer == label,
                       isCorrect: question.correctAnswer == label,
+                      isEliminated:
+                          quiz.eliminatedOptions[[
+                            'A',
+                            'B',
+                            'C',
+                            'D',
+                          ].indexOf(label)],
                       onTap:
                           () => ref
                               .read(quizProvider.notifier)

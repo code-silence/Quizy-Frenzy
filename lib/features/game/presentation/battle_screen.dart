@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:quizy_frenzy/features/ability/models/ability_state.dart';
 import '../providers/game_provider.dart';
+import '../../ability/providers/ability_provider.dart';
+import '../../ability/presentation/widgets/ability_button.dart';
 import '../../quiz/presentation/widgets/option_tile.dart';
 import '../../quiz/presentation/widgets/quiz_timer.dart';
 import 'battle_result_screen.dart';
@@ -14,23 +17,21 @@ class BattleScreen extends ConsumerWidget {
     final scheme = Theme.of(context).colorScheme;
 
     return battleAsync.when(
-      loading: () => const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      ),
-      error: (e, _) => Scaffold(
-        body: Center(child: Text('Error: $e')),
-      ),
+      loading:
+          () =>
+              const Scaffold(body: Center(child: CircularProgressIndicator())),
+      error: (e, _) => Scaffold(body: Center(child: Text('Error: $e'))),
       data: (battle) {
         // Navigate to result when finished
         if (battle.finished) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
             Navigator.of(context).pushReplacement(
-              MaterialPageRoute(
-                  builder: (_) => const BattleResultScreen()),
+              MaterialPageRoute(builder: (_) => const BattleResultScreen()),
             );
           });
           return const Scaffold(
-              body: Center(child: CircularProgressIndicator()));
+            body: Center(child: CircularProgressIndicator()),
+          );
         }
 
         // Waiting for opponent
@@ -43,16 +44,22 @@ class BattleScreen extends ConsumerWidget {
                 children: [
                   const CircularProgressIndicator(),
                   const SizedBox(height: 24),
-                  const Text('Waiting for opponent...',
-                      style: TextStyle(fontSize: 18)),
+                  const Text(
+                    'Waiting for opponent...',
+                    style: TextStyle(fontSize: 18),
+                  ),
                   if (battle.match.roomCode != null) ...[
                     const SizedBox(height: 24),
-                    Text('Room Code',
-                        style: TextStyle(color: scheme.onSurfaceVariant)),
+                    Text(
+                      'Room Code',
+                      style: TextStyle(color: scheme.onSurfaceVariant),
+                    ),
                     const SizedBox(height: 8),
                     Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 24, vertical: 12),
+                        horizontal: 24,
+                        vertical: 12,
+                      ),
                       decoration: BoxDecoration(
                         color: scheme.primaryContainer,
                         borderRadius: BorderRadius.circular(14),
@@ -68,10 +75,13 @@ class BattleScreen extends ConsumerWidget {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    Text('Share this code with your friend',
-                        style: TextStyle(
-                            color: scheme.onSurfaceVariant,
-                            fontSize: 13)),
+                    Text(
+                      'Share this code with your friend',
+                      style: TextStyle(
+                        color: scheme.onSurfaceVariant,
+                        fontSize: 13,
+                      ),
+                    ),
                   ],
                 ],
               ),
@@ -82,6 +92,7 @@ class BattleScreen extends ConsumerWidget {
         final question = battle.currentQuestion;
         final myPlayer = battle.myPlayer;
         final opponent = battle.opponent;
+        final ability = ref.watch(abilityProvider);
 
         return Scaffold(
           body: SafeArea(
@@ -100,8 +111,11 @@ class BattleScreen extends ConsumerWidget {
                         color: scheme.primary,
                       ),
                       const Spacer(),
-                      Icon(Icons.flash_on_rounded,
-                          color: scheme.primary, size: 20),
+                      Icon(
+                        Icons.flash_on_rounded,
+                        color: scheme.primary,
+                        size: 20,
+                      ),
                       const Spacer(),
                       _PlayerChip(
                         name: opponent?.username ?? 'Opponent',
@@ -119,15 +133,17 @@ class BattleScreen extends ConsumerWidget {
                       Text(
                         '${battle.match.currentQuestionIndex + 1}/${battle.questions.length}',
                         style: TextStyle(
-                            color: scheme.onSurfaceVariant,
-                            fontWeight: FontWeight.w600),
+                          color: scheme.onSurfaceVariant,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(8),
                           child: LinearProgressIndicator(
-                            value: (battle.match.currentQuestionIndex + 1) /
+                            value:
+                                (battle.match.currentQuestionIndex + 1) /
                                 battle.questions.length,
                             minHeight: 8,
                           ),
@@ -144,14 +160,31 @@ class BattleScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 24),
 
+                  if (ability.type != AbilityType.none && ability.available)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          AbilityButton(
+                            ability: ability,
+                            onTap:
+                                () =>
+                                    ref
+                                        .read(battleProvider.notifier)
+                                        .useAbility(),
+                          ),
+                        ],
+                      ),
+                    ),
+
                   // Question
                   Text(
                     question.questionText,
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleLarge
-                        ?.copyWith(
-                            fontWeight: FontWeight.w600, height: 1.4),
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      height: 1.4,
+                    ),
                   ),
                   const SizedBox(height: 28),
 
@@ -163,9 +196,17 @@ class BattleScreen extends ConsumerWidget {
                       answered: battle.answered,
                       isSelected: battle.selectedAnswer == label,
                       isCorrect: question.correctAnswer == label,
-                      onTap: () => ref
-                          .read(battleProvider.notifier)
-                          .selectAnswer(label),
+                      isEliminated:
+                          battle.eliminatedOptions[[
+                            'A',
+                            'B',
+                            'C',
+                            'D',
+                          ].indexOf(label)],
+                      onTap:
+                          () => ref
+                              .read(battleProvider.notifier)
+                              .selectAnswer(label),
                     ),
                 ],
               ),
@@ -200,15 +241,18 @@ class _PlayerChip extends StatelessWidget {
           child: Text(
             name.substring(0, 1).toUpperCase(),
             style: TextStyle(
-                color: color, fontWeight: FontWeight.bold, fontSize: 16),
+              color: color,
+              fontWeight: FontWeight.bold,
+              fontSize: 16,
+            ),
           ),
         ),
         const SizedBox(height: 4),
-        Text(isMe ? 'You' : name,
-            style: const TextStyle(fontSize: 12)),
-        Text('$score pts',
-            style:
-                TextStyle(fontWeight: FontWeight.bold, color: color)),
+        Text(isMe ? 'You' : name, style: const TextStyle(fontSize: 12)),
+        Text(
+          '$score pts',
+          style: TextStyle(fontWeight: FontWeight.bold, color: color),
+        ),
       ],
     );
   }
