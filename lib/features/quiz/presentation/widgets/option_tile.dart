@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 
 class OptionTile extends StatelessWidget {
-  final String label;      // 'A' | 'B' | 'C' | 'D'
+  final String label; // 'A' | 'B' | 'C' | 'D'
   final String text;
   final bool answered;
   final bool isSelected;
   final bool isCorrect;
+  final bool isEliminated;
   final VoidCallback onTap;
 
   const OptionTile({
@@ -15,12 +16,59 @@ class OptionTile extends StatelessWidget {
     required this.answered,
     required this.isSelected,
     required this.isCorrect,
+    required this.isEliminated,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
+
+    if (isEliminated) {
+      return AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.grey.shade300),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 32,
+              height: 32,
+              decoration: BoxDecoration(
+                color: Colors.grey.shade200,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Center(
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey.shade400,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                text,
+                style: TextStyle(
+                  fontSize: 15,
+                  color: Colors.grey.shade400,
+                  decoration: TextDecoration.lineThrough,
+                ),
+              ),
+            ),
+            Icon(Icons.close_rounded, color: Colors.grey.shade400, size: 18),
+          ],
+        ),
+      );
+    }
 
     Color bgColor = scheme.surfaceContainerHighest.withOpacity(0.4);
     Color borderColor = Colors.transparent;
@@ -70,15 +118,13 @@ class OptionTile extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                text,
-                style: const TextStyle(fontSize: 15),
-              ),
-            ),
+            Expanded(child: Text(text, style: const TextStyle(fontSize: 15))),
             if (answered && isCorrect)
-              const Icon(Icons.check_circle_rounded,
-                  color: Colors.green, size: 20),
+              const Icon(
+                Icons.check_circle_rounded,
+                color: Colors.green,
+                size: 20,
+              ),
             if (answered && isSelected && !isCorrect)
               const Icon(Icons.cancel_rounded, color: Colors.red, size: 20),
           ],

@@ -47,22 +47,24 @@ class GameRepository {
   Future<MatchModel?> joinByRoomCode(String code) async {
     final currentUserId = _client.auth.currentUser!.id;
 
-    final data = await _client
-        .from('matches')
-        .select()
-        .eq('room_code', code.toUpperCase())
-        .eq('status', 'waiting')
-        .maybeSingle();
+    final data =
+        await _client
+            .from('matches')
+            .select()
+            .eq('room_code', code.toUpperCase())
+            .eq('status', 'waiting')
+            .maybeSingle();
 
     if (data == null) return null;
     final match = MatchModel.fromMap(data);
 
-    final existing = await _client
-        .from('match_players')
-        .select()
-        .eq('match_id', match.id)
-        .eq('player_id', currentUserId)
-        .maybeSingle();
+    final existing =
+        await _client
+            .from('match_players')
+            .select()
+            .eq('match_id', match.id)
+            .eq('player_id', currentUserId)
+            .maybeSingle();
 
     if (existing == null) {
       await _client.from('match_players').insert({
@@ -79,23 +81,25 @@ class GameRepository {
   Future<MatchModel> joinOrCreateRandom() async {
     final currentUserId = _client.auth.currentUser!.id;
 
-    final data = await _client
-        .from('matches')
-        .select()
-        .eq('status', 'waiting')
-        .isFilter('room_code', null)
-        .limit(1)
-        .maybeSingle();
+    final data =
+        await _client
+            .from('matches')
+            .select()
+            .eq('status', 'waiting')
+            .isFilter('room_code', null)
+            .limit(1)
+            .maybeSingle();
 
     if (data != null) {
       final match = MatchModel.fromMap(data);
 
-      final existing = await _client
-          .from('match_players')
-          .select()
-          .eq('match_id', match.id)
-          .eq('player_id', currentUserId)
-          .maybeSingle();
+      final existing =
+          await _client
+              .from('match_players')
+              .select()
+              .eq('match_id', match.id)
+              .eq('player_id', currentUserId)
+              .maybeSingle();
 
       if (existing == null) {
         await _client.from('match_players').insert({
@@ -161,22 +165,27 @@ class GameRepository {
     final players = <MatchPlayerModel>[];
     for (final row in rows) {
       try {
-        final profile = await _client
-            .from('profiles')
-            .select('username')
-            .eq('id', row['player_id'] as String)
-            .single();
+        final profile =
+            await _client
+                .from('profiles')
+                .select('username')
+                .eq('id', row['player_id'] as String)
+                .single();
         print('=== fetchPlayers profile: $profile ===');
-        players.add(MatchPlayerModel.fromMap({
-          ...row,
-          'profiles': {'username': profile['username']},
-        }));
+        players.add(
+          MatchPlayerModel.fromMap({
+            ...row,
+            'profiles': {'username': profile['username']},
+          }),
+        );
       } catch (e) {
         print('=== fetchPlayers FAILED: $e ===');
-        players.add(MatchPlayerModel.fromMap({
-          ...row,
-          'profiles': {'username': 'Player'},
-        }));
+        players.add(
+          MatchPlayerModel.fromMap({
+            ...row,
+            'profiles': {'username': 'Player'},
+          }),
+        );
       }
     }
     return players;
@@ -201,44 +210,87 @@ class GameRepository {
           for (final row in rows) {
             print('=== row player_id: ${row['player_id']} ===');
             try {
-              final profile = await _client
-                  .from('profiles')
-                  .select('username')
-                  .eq('id', row['player_id'] as String)
-                  .single();
+              final profile =
+                  await _client
+                      .from('profiles')
+                      .select('username')
+                      .eq('id', row['player_id'] as String)
+                      .single();
 
               print('=== profile result: $profile ===');
               print('=== username value: ${profile['username']} ===');
 
-              players.add(MatchPlayerModel.fromMap({
-                ...row,
-                'profiles': {'username': profile['username']},
-              }));
+              players.add(
+                MatchPlayerModel.fromMap({
+                  ...row,
+                  'profiles': {'username': profile['username']},
+                }),
+              );
             } catch (e) {
               print('=== profile fetch FAILED: $e ===');
               await Future.delayed(const Duration(milliseconds: 500));
               try {
-                final profile = await _client
-                    .from('profiles')
-                    .select('username')
-                    .eq('id', row['player_id'] as String)
-                    .single();
+                final profile =
+                    await _client
+                        .from('profiles')
+                        .select('username')
+                        .eq('id', row['player_id'] as String)
+                        .single();
                 print('=== retry profile result: $profile ===');
-                players.add(MatchPlayerModel.fromMap({
-                  ...row,
-                  'profiles': {'username': profile['username']},
-                }));
+                players.add(
+                  MatchPlayerModel.fromMap({
+                    ...row,
+                    'profiles': {'username': profile['username']},
+                  }),
+                );
               } catch (e2) {
                 print('=== retry FAILED: $e2 ===');
-                players.add(MatchPlayerModel.fromMap({
-                  ...row,
-                  'profiles': {'username': 'Player'},
-                }));
+                players.add(
+                  MatchPlayerModel.fromMap({
+                    ...row,
+                    'profiles': {'username': 'Player'},
+                  }),
+                );
               }
             }
           }
-          print('=== final players list: ${players.map((p) => p.username).toList()} ===');
+          print(
+            '=== final players list: ${players.map((p) => p.username).toList()} ===',
+          );
           return players;
         });
+  }
+
+  Future<void> sabotageOpponent({
+    required String matchId,
+    required String opponentId,
+  }) async {
+    await _client
+        .from('match_players')
+        .update({'sabotaged': true})
+        .eq('match_id', matchId)
+        .eq('player_id', opponentId);
+  }
+
+  Future<void> markAbilityUsed({
+    required String matchId,
+    required String playerId,
+  }) async {
+    await _client
+        .from('match_players')
+        .update({'ability_used': true})
+        .eq('match_id', matchId)
+        .eq('player_id', playerId);
+  }
+
+  Future<void> clearSabotage({
+    required String matchId,
+    required String playerId,
+  }) async {
+    await _client
+        .from('match_players')
+        .update({'sabotaged': false})
+        .eq('match_id', matchId)
+        .eq('player_id', playerId);
   }
 }

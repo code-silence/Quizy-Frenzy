@@ -24,6 +24,21 @@ class _CharacterSelectionScreenState
   @override
   void initState() {
     super.initState();
+
+    // Set initial index to currently selected character
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final characters = ref.read(charactersProvider).value;
+      final profile = ref.read(profileProvider).value;
+      if (characters != null && profile != null) {
+        final index = characters.indexWhere(
+          (c) => c.characterKey == profile.selectedCharacter,
+        );
+        if (index != -1 && index != _selectedIndex) {
+          setState(() => _selectedIndex = index);
+        }
+      }
+    });
+
     _slideController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 400),
@@ -35,13 +50,13 @@ class _CharacterSelectionScreenState
     _slideAnimation = Tween<Offset>(
       begin: const Offset(-0.3, 0),
       end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _slideController,
-      curve: Curves.easeOutCubic,
-    ));
-    _fadeAnimation = Tween<double>(begin: 0, end: 1).animate(
-      CurvedAnimation(parent: _fadeController, curve: Curves.easeIn),
+    ).animate(
+      CurvedAnimation(parent: _slideController, curve: Curves.easeOutCubic),
     );
+    _fadeAnimation = Tween<double>(
+      begin: 0,
+      end: 1,
+    ).animate(CurvedAnimation(parent: _fadeController, curve: Curves.easeIn));
     _slideController.forward();
     _fadeController.forward();
   }
@@ -65,8 +80,7 @@ class _CharacterSelectionScreenState
   @override
   Widget build(BuildContext context) {
     final charactersAsync = ref.watch(charactersProvider);
-    final profileAsync = ref.watch(profileProvider);
-    final profile = profileAsync.value;
+    final profile = ref.read(profileProvider).value;
     final size = MediaQuery.of(context).size;
 
     return Scaffold(
@@ -75,8 +89,8 @@ class _CharacterSelectionScreenState
         error: (e, _) => Center(child: Text('Error: $e')),
         data: (characters) {
           final selected = characters[_selectedIndex];
-          final isUnlocked = profile != null &&
-              profile.level >= selected.unlockLevel;
+          final isUnlocked =
+              profile != null && profile.level >= selected.unlockLevel;
           final isSelected =
               profile?.selectedCharacter == selected.characterKey;
 
@@ -100,12 +114,16 @@ class _CharacterSelectionScreenState
                   // App bar
                   Padding(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 16, vertical: 8),
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     child: Row(
                       children: [
                         IconButton(
-                          icon: const Icon(Icons.arrow_back_ios_rounded,
-                              color: Colors.white),
+                          icon: const Icon(
+                            Icons.arrow_back_ios_rounded,
+                            color: Colors.white,
+                          ),
                           onPressed: () => Navigator.pop(context),
                         ),
                         const Expanded(
@@ -144,19 +162,21 @@ class _CharacterSelectionScreenState
                                     height: size.width * 0.45,
                                     decoration: BoxDecoration(
                                       shape: BoxShape.circle,
-                                      color: Colors.white
-                                          .withOpacity(0.08),
+                                      color: Colors.white.withOpacity(0.08),
                                     ),
                                   ),
                                   // Character image
-                                  Image.asset(
-                                    selected.fullImagePath,
-                                    height: size.height * 0.55,
-                                    fit: BoxFit.contain,
-                                    errorBuilder: (_, __, ___) =>
-                                        _PlaceholderCharacter(
-                                      name: selected.name,
-                                      color: Color(selected.colors[0]),
+                                  RepaintBoundary(
+                                    child: Image.asset(
+                                      selected.fullImagePath,
+                                      key: ValueKey(selected.characterKey),
+                                      height: size.height * 0.55,
+                                      fit: BoxFit.contain,
+                                      errorBuilder:
+                                          (_, __, ___) => _PlaceholderCharacter(
+                                            name: selected.name,
+                                            color: Color(selected.colors[0]),
+                                          ),
                                     ),
                                   ),
                                   // Lock overlay
@@ -166,15 +186,17 @@ class _CharacterSelectionScreenState
                                       height: size.height * 0.55,
                                       decoration: BoxDecoration(
                                         color: Colors.black.withOpacity(0.5),
-                                        borderRadius:
-                                            BorderRadius.circular(20),
+                                        borderRadius: BorderRadius.circular(20),
                                       ),
                                       child: const Column(
                                         mainAxisAlignment:
                                             MainAxisAlignment.center,
                                         children: [
-                                          Icon(Icons.lock_rounded,
-                                              color: Colors.white, size: 48),
+                                          Icon(
+                                            Icons.lock_rounded,
+                                            color: Colors.white,
+                                            size: 48,
+                                          ),
                                         ],
                                       ),
                                     ),
@@ -191,36 +213,37 @@ class _CharacterSelectionScreenState
                             opacity: _fadeAnimation,
                             child: Padding(
                               padding: const EdgeInsets.only(
-                                  right: 20, top: 16, bottom: 16),
+                                right: 20,
+                                top: 16,
+                                bottom: 16,
+                              ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisAlignment:
-                                    MainAxisAlignment.center,
+                                mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
                                   // Character icon
                                   Container(
                                     width: 64,
                                     height: 64,
                                     decoration: BoxDecoration(
-                                      borderRadius:
-                                          BorderRadius.circular(16),
-                                      color:
-                                          Colors.white.withOpacity(0.15),
+                                      borderRadius: BorderRadius.circular(16),
+                                      color: Colors.white.withOpacity(0.15),
                                       border: Border.all(
-                                          color: Colors.white
-                                              .withOpacity(0.4),
-                                          width: 2),
+                                        color: Colors.white.withOpacity(0.4),
+                                        width: 2,
+                                      ),
                                     ),
                                     child: ClipRRect(
-                                      borderRadius:
-                                          BorderRadius.circular(14),
+                                      borderRadius: BorderRadius.circular(14),
                                       child: Image.asset(
                                         selected.iconImagePath,
                                         fit: BoxFit.cover,
-                                        errorBuilder: (_, __, ___) =>
-                                            Icon(Icons.person_rounded,
-                                                color: Colors.white,
-                                                size: 36),
+                                        errorBuilder:
+                                            (_, __, ___) => Icon(
+                                              Icons.person_rounded,
+                                              color: Colors.white,
+                                              size: 36,
+                                            ),
                                       ),
                                     ),
                                   ),
@@ -241,18 +264,20 @@ class _CharacterSelectionScreenState
                                   Container(
                                     margin: const EdgeInsets.only(top: 4),
                                     padding: const EdgeInsets.symmetric(
-                                        horizontal: 10, vertical: 3),
+                                      horizontal: 10,
+                                      vertical: 3,
+                                    ),
                                     decoration: BoxDecoration(
                                       color: Colors.white.withOpacity(0.2),
-                                      borderRadius:
-                                          BorderRadius.circular(20),
+                                      borderRadius: BorderRadius.circular(20),
                                     ),
                                     child: Text(
                                       selected.gender.toUpperCase(),
                                       style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w600),
+                                        color: Colors.white,
+                                        fontSize: 11,
+                                        fontWeight: FontWeight.w600,
+                                      ),
                                     ),
                                   ),
                                   const SizedBox(height: 20),
@@ -263,11 +288,10 @@ class _CharacterSelectionScreenState
                                       padding: const EdgeInsets.all(12),
                                       decoration: BoxDecoration(
                                         color: Colors.white.withOpacity(0.15),
-                                        borderRadius:
-                                            BorderRadius.circular(14),
+                                        borderRadius: BorderRadius.circular(14),
                                         border: Border.all(
-                                            color: Colors.white
-                                                .withOpacity(0.3)),
+                                          color: Colors.white.withOpacity(0.3),
+                                        ),
                                       ),
                                       child: Column(
                                         crossAxisAlignment:
@@ -276,9 +300,10 @@ class _CharacterSelectionScreenState
                                           Row(
                                             children: [
                                               const Icon(
-                                                  Icons.auto_awesome_rounded,
-                                                  color: Colors.amber,
-                                                  size: 16),
+                                                Icons.auto_awesome_rounded,
+                                                color: Colors.amber,
+                                                size: 16,
+                                              ),
                                               const SizedBox(width: 6),
                                               Text(
                                                 selected.abilityName!,
@@ -294,8 +319,9 @@ class _CharacterSelectionScreenState
                                           Text(
                                             selected.abilityDescription!,
                                             style: TextStyle(
-                                              color: Colors.white
-                                                  .withOpacity(0.9),
+                                              color: Colors.white.withOpacity(
+                                                0.9,
+                                              ),
                                               fontSize: 12,
                                               height: 1.4,
                                             ),
@@ -303,15 +329,18 @@ class _CharacterSelectionScreenState
                                           const SizedBox(height: 6),
                                           Row(
                                             children: [
-                                              const Icon(Icons.replay_rounded,
-                                                  color: Colors.white70,
-                                                  size: 12),
+                                              const Icon(
+                                                Icons.replay_rounded,
+                                                color: Colors.white70,
+                                                size: 12,
+                                              ),
                                               const SizedBox(width: 4),
                                               Text(
                                                 '${selected.abilityUses}x per match',
                                                 style: const TextStyle(
-                                                    color: Colors.white70,
-                                                    fontSize: 11),
+                                                  color: Colors.white70,
+                                                  fontSize: 11,
+                                                ),
                                               ),
                                             ],
                                           ),
@@ -323,23 +352,25 @@ class _CharacterSelectionScreenState
                                       padding: const EdgeInsets.all(12),
                                       decoration: BoxDecoration(
                                         color: Colors.white.withOpacity(0.1),
-                                        borderRadius:
-                                            BorderRadius.circular(14),
+                                        borderRadius: BorderRadius.circular(14),
                                         border: Border.all(
-                                            color: Colors.white
-                                                .withOpacity(0.2)),
+                                          color: Colors.white.withOpacity(0.2),
+                                        ),
                                       ),
                                       child: const Row(
                                         children: [
-                                          Icon(Icons.shield_rounded,
-                                              color: Colors.white54,
-                                              size: 16),
+                                          Icon(
+                                            Icons.shield_rounded,
+                                            color: Colors.white54,
+                                            size: 16,
+                                          ),
                                           SizedBox(width: 6),
                                           Text(
                                             'No special ability',
                                             style: TextStyle(
-                                                color: Colors.white54,
-                                                fontSize: 12),
+                                              color: Colors.white54,
+                                              fontSize: 12,
+                                            ),
                                           ),
                                         ],
                                       ),
@@ -351,17 +382,20 @@ class _CharacterSelectionScreenState
                                   if (!selected.isFree)
                                     Container(
                                       padding: const EdgeInsets.symmetric(
-                                          horizontal: 10, vertical: 5),
+                                        horizontal: 10,
+                                        vertical: 5,
+                                      ),
                                       decoration: BoxDecoration(
-                                        color: isUnlocked
-                                            ? Colors.green.withOpacity(0.3)
-                                            : Colors.red.withOpacity(0.3),
-                                        borderRadius:
-                                            BorderRadius.circular(10),
+                                        color:
+                                            isUnlocked
+                                                ? Colors.green.withOpacity(0.3)
+                                                : Colors.red.withOpacity(0.3),
+                                        borderRadius: BorderRadius.circular(10),
                                         border: Border.all(
-                                          color: isUnlocked
-                                              ? Colors.green
-                                              : Colors.red.withOpacity(0.5),
+                                          color:
+                                              isUnlocked
+                                                  ? Colors.green
+                                                  : Colors.red.withOpacity(0.5),
                                         ),
                                       ),
                                       child: Row(
@@ -380,9 +414,10 @@ class _CharacterSelectionScreenState
                                                 ? 'Unlocked'
                                                 : 'Unlock at Level ${selected.unlockLevel}',
                                             style: const TextStyle(
-                                                color: Colors.white,
-                                                fontSize: 11,
-                                                fontWeight: FontWeight.w600),
+                                              color: Colors.white,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w600,
+                                            ),
                                           ),
                                         ],
                                       ),
@@ -393,63 +428,74 @@ class _CharacterSelectionScreenState
                                   SizedBox(
                                     width: double.infinity,
                                     height: 46,
-                                    child: isSelected
-                                        ? FilledButton.icon(
-                                            onPressed: null,
-                                            style: FilledButton.styleFrom(
-                                              backgroundColor:
-                                                  Colors.white.withOpacity(0.3),
-                                            ),
-                                            icon: const Icon(
+                                    child:
+                                        isSelected
+                                            ? FilledButton.icon(
+                                              onPressed: null,
+                                              style: FilledButton.styleFrom(
+                                                backgroundColor: Colors.white
+                                                    .withOpacity(0.3),
+                                              ),
+                                              icon: const Icon(
                                                 Icons.check_circle_rounded,
-                                                color: Colors.white),
-                                            label: const Text('Selected',
+                                                color: Colors.white,
+                                              ),
+                                              label: const Text(
+                                                'Selected',
                                                 style: TextStyle(
-                                                    color: Colors.white,
-                                                    fontWeight:
-                                                        FontWeight.bold)),
-                                          )
-                                        : FilledButton(
-                                            onPressed: isUnlocked
-                                                ? () async {
-                                                    await ref
-                                                        .read(profileProvider
-                                                            .notifier)
-                                                        .updateCharacter(
-                                                            selected
-                                                                .characterKey);
-                                                    if (context.mounted) {
-                                                      ScaffoldMessenger.of(
-                                                              context)
-                                                          .showSnackBar(
-                                                        SnackBar(
-                                                          content: Text(
-                                                              '${selected.name} selected!'),
-                                                          backgroundColor:
-                                                              Colors.green,
-                                                        ),
-                                                      );
-                                                    }
-                                                  }
-                                                : null,
-                                            style: FilledButton.styleFrom(
-                                              backgroundColor:
-                                                  Colors.white.withOpacity(0.25),
-                                              disabledBackgroundColor:
-                                                  Colors.white.withOpacity(0.1),
-                                            ),
-                                            child: Text(
-                                              isUnlocked
-                                                  ? 'Select ${selected.name}'
-                                                  : 'Level ${selected.unlockLevel} Required',
-                                              style: TextStyle(
-                                                color: isUnlocked
-                                                    ? Colors.white
-                                                    : Colors.white54,
-                                                fontWeight: FontWeight.bold,
+                                                  color: Colors.white,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                            )
+                                            : FilledButton(
+                                              onPressed:
+                                                  isUnlocked
+                                                      ? () async {
+                                                        await ref
+                                                            .read(
+                                                              profileProvider
+                                                                  .notifier,
+                                                            )
+                                                            .updateCharacter(
+                                                              selected
+                                                                  .characterKey,
+                                                            );
+                                                        if (context.mounted) {
+                                                          ScaffoldMessenger.of(
+                                                            context,
+                                                          ).showSnackBar(
+                                                            SnackBar(
+                                                              content: Text(
+                                                                '${selected.name} selected!',
+                                                              ),
+                                                              backgroundColor:
+                                                                  Colors.green,
+                                                            ),
+                                                          );
+                                                        }
+                                                      }
+                                                      : null,
+                                              style: FilledButton.styleFrom(
+                                                backgroundColor: Colors.white
+                                                    .withOpacity(0.25),
+                                                disabledBackgroundColor: Colors
+                                                    .white
+                                                    .withOpacity(0.1),
+                                              ),
+                                              child: Text(
+                                                isUnlocked
+                                                    ? 'Select ${selected.name}'
+                                                    : 'Level ${selected.unlockLevel} Required',
+                                                style: TextStyle(
+                                                  color:
+                                                      isUnlocked
+                                                          ? Colors.white
+                                                          : Colors.white54,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
                                               ),
                                             ),
-                                          ),
                                   ),
                                 ],
                               ),
@@ -466,11 +512,14 @@ class _CharacterSelectionScreenState
                     child: ListView.builder(
                       scrollDirection: Axis.horizontal,
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 10),
+                        horizontal: 16,
+                        vertical: 10,
+                      ),
                       itemCount: characters.length,
                       itemBuilder: (context, index) {
                         final char = characters[index];
-                        final unlocked = profile != null &&
+                        final unlocked =
+                            profile != null &&
                             profile.level >= char.unlockLevel;
                         final isActive = index == _selectedIndex;
 
@@ -483,14 +532,16 @@ class _CharacterSelectionScreenState
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(14),
                               border: Border.all(
-                                color: isActive
-                                    ? Colors.white
-                                    : Colors.white.withOpacity(0.3),
+                                color:
+                                    isActive
+                                        ? Colors.white
+                                        : Colors.white.withOpacity(0.3),
                                 width: isActive ? 2.5 : 1,
                               ),
-                              color: isActive
-                                  ? Colors.white.withOpacity(0.25)
-                                  : Colors.white.withOpacity(0.1),
+                              color:
+                                  isActive
+                                      ? Colors.white.withOpacity(0.25)
+                                      : Colors.white.withOpacity(0.1),
                             ),
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(12),
@@ -500,21 +551,26 @@ class _CharacterSelectionScreenState
                                   Image.asset(
                                     char.iconImagePath,
                                     fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => Center(
-                                      child: Text(
-                                        char.name[0],
-                                        style: const TextStyle(
-                                            color: Colors.white,
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 20),
-                                      ),
-                                    ),
+                                    errorBuilder:
+                                        (_, __, ___) => Center(
+                                          child: Text(
+                                            char.name[0],
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 20,
+                                            ),
+                                          ),
+                                        ),
                                   ),
                                   if (!unlocked)
                                     Container(
                                       color: Colors.black.withOpacity(0.5),
-                                      child: const Icon(Icons.lock_rounded,
-                                          color: Colors.white54, size: 20),
+                                      child: const Icon(
+                                        Icons.lock_rounded,
+                                        color: Colors.white54,
+                                        size: 20,
+                                      ),
                                     ),
                                 ],
                               ),
@@ -555,11 +611,14 @@ class _PlaceholderCharacter extends StatelessWidget {
         children: [
           Icon(Icons.person_rounded, color: Colors.white, size: 80),
           const SizedBox(height: 12),
-          Text(name,
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold)),
+          Text(
+            name,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
         ],
       ),
     );
